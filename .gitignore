@@ -1,0 +1,71 @@
+abi.json
+accounts
+DecentralizedWillManager.sol
+
+# === Global ===
+.DS_Store
+.env
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+node_modules/
+dist/
+build/
+.cache/
+coverage/
+*.tmp
+*.swp
+*.swo
+
+# === Foundry (contract/) ===
+/contract/out/
+/contract/cache/
+/contract/broadcast/
+/contract/lib/
+/contract/test-results/
+/contract/forge-artifacts/
+/contract/.foundry-cache/
+/contract/.env
+
+# === React App (frontend/) ===
+/frontend/node_modules/
+/frontend/.next/
+/frontend/.parcel-cache/
+/frontend/.turbo/
+/frontend/dist/
+/frontend/build/
+/frontend/.env
+/frontend/.env.local
+/frontend/coverage/
+/frontend/.vite/
+frontend/.eslintcache
+
+# === Node.js (indexer/) ===
+/indexer/node_modules/
+/indexer/dist/
+/indexer/build/
+/indexer/.env
+/indexer/.env.local
+/indexer/coverage/
+/indexer/logs/
+/indexer/tmp/
+/indexer/debug.log
+/indexer/.cache/
+/indexer/wills.db
+
+# === Editor / System ===
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# === OS files ===
+Thumbs.db
+ehthumbs.db
+Desktop.ini
