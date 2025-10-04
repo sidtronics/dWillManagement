@@ -14,7 +14,7 @@ sleep 2
 )
 
 # Start indexer service
-(cd ./indexer && rm wills.db && npm run dev) &
+(cd ./indexer && rm -f wills.db && npm run dev) &
 
 # Start frontend
 (cd ./frontend && npm start)
