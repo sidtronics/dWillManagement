@@ -271,24 +271,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       </div>
       
       <div className="p-6 space-y-6">
-        {/* Debug Panel - Remove this in production */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <p className="text-xs text-yellow-700">
-              Debug Info - Account: {account} | My Wills: {myWills.length} | Selected: {selectedWill?.willId || 'none'}
-            </p>
-            <button 
-              onClick={() => {
-                console.log('Force refresh clicked');
-                refreshData();
-              }}
-              className="text-xs bg-yellow-500 text-white px-2 py-1 rounded mt-1"
-            >
-              Force Refresh
-            </button>
-          </div>
-        )}
-        
+
         {myWills.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">No will created yet</p>
@@ -334,9 +317,6 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
               >
                 {loading ? 'Creating...' : 'Create Will'}
               </button>
-              <p className="text-xs text-gray-400">
-                Make sure your indexer API is running on localhost:3001
-              </p>
             </div>
           </div>
         ) : (
