@@ -11,25 +11,15 @@ const Navbar = ({ account, onDisconnect, isSidebarOpen, toggleSidebar }) => {
           <div className="flex items-center">
             <div className="ml-4 flex items-center">
               <Shield className="h-8 w-8 text-blue-600" />
-              <span className="ml-2 text-xl font-bold text-gray-900">WillChain</span>
+              <span className="ml-2 text-xl font-bold text-gray-900">dWill</span>
             </div>
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full relative"
-              >
-                <Bell className="h-6 w-6" />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-              </button>
-            </div>
-
             <div className="flex items-center space-x-3 px-3 py-2 bg-gray-100 rounded-lg">
               <div className="h-2 w-2 bg-green-400 rounded-full"></div>
               <span className="text-sm font-medium text-gray-700">
-                {account.slice(0, 6)}...{account.slice(-4)}
+                {account}
               </span>
             </div>
 
