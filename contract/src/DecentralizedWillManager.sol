@@ -10,26 +10,25 @@ contract DecentralizedWillManager {
     // ============ STRUCTS ============
     
     struct Beneficiary {
-        address wallet;           // Beneficiary's wallet address
+        address wallet;          // Beneficiary's wallet address
         uint256 share;           // Percentage of inheritance (0-100)
         bool isGuardian;         // Only one guardian per will
     }
     
     struct Will {
-        address testator;        // Will owner
+        address testator;             // Will owner
         Beneficiary[] beneficiaries;  // Array of beneficiaries
-        uint256 lockedVault;     // Cannot be withdrawn by testator
-        uint256 flexibleVault;   // Can be withdrawn by testator
-        uint256 lastCheckIn;     // Timestamp of last check-in
-        uint256 checkInPeriod;   // Seconds between required check-ins
-        uint256 disputePeriod;   // Seconds for dispute resolution after deadline
-        bool executed;           // Whether will has been executed
+        uint256 lockedVault;          // Cannot be withdrawn by testator
+        uint256 flexibleVault;        // Can be withdrawn by testator
+        uint256 lastCheckIn;          // Timestamp of last check-in
+        uint256 checkInPeriod;        // Seconds between required check-ins
+        uint256 disputePeriod;        // Seconds for dispute resolution after deadline
+        bool executed;                // Whether will has been executed
     }
     
     // ============ STATE VARIABLES ============
     
-    mapping(address => Will) public wills;                    // testator => Will
-    mapping(address => address[]) public beneficiaryToTestators; // beneficiary => testator[]
+    mapping(address => Will) public wills;
     
     // ============ EVENTS ============
     
@@ -78,7 +77,6 @@ contract DecentralizedWillManager {
         require(checkInPeriod > 0, "Check-in period must be positive");
         require(disputePeriod > 0, "Dispute period must be positive");
         
-        // Initialize will struct
         Will storage newWill = wills[msg.sender];
         newWill.testator = msg.sender;
         newWill.checkInPeriod = checkInPeriod;
@@ -107,21 +105,16 @@ contract DecentralizedWillManager {
         require(currentTime > deadlineTime, "Check-in period has not expired");
         
         if (currentTime <= disputeEndTime) {
-            // During dispute period - only guardian can execute
             require(_isGuardianOfWill(msg.sender, testator), "Only guardian can execute during dispute period");
         } else {
-            // After dispute period - any beneficiary can execute
             require(_isBeneficiaryOfWill(msg.sender, testator), "Only beneficiaries can execute will");
         }
         
-        // Calculate total funds to distribute
         uint256 totalFunds = will.lockedVault + will.flexibleVault;
         require(totalFunds > 0, "No funds to distribute");
         
-        // Validate total shares = 100%
         require(_getTotalShares(testator) == 100, "Total beneficiary shares must equal 100%");
         
-        // Distribute funds to beneficiaries
         for (uint256 i = 0; i < will.beneficiaries.length; i++) {
             Beneficiary memory beneficiary = will.beneficiaries[i];
             uint256 amount = (totalFunds * beneficiary.share) / 100;
@@ -132,7 +125,6 @@ contract DecentralizedWillManager {
             }
         }
         
-        // Mark will as executed
         will.executed = true;
         will.lockedVault = 0;
         will.flexibleVault = 0;
@@ -158,24 +150,18 @@ contract DecentralizedWillManager {
         require(beneficiary != msg.sender, "Cannot add self as beneficiary");
         require(!_isBeneficiaryOfWill(beneficiary, msg.sender), "Beneficiary already exists");
         
-        // Guardian validation
         if (isGuardian) {
             require(!_hasGuardian(msg.sender), "Guardian already exists");
         }
         
-        // Check total shares won't exceed 100%
         uint256 currentTotal = _getTotalShares(msg.sender);
         require(currentTotal + share <= 100, "Total shares cannot exceed 100%");
         
-        // Add beneficiary
         wills[msg.sender].beneficiaries.push(Beneficiary({
             wallet: beneficiary,
             share: share,
             isGuardian: isGuardian
         }));
-        
-        // Update reverse mapping
-        beneficiaryToTestators[beneficiary].push(msg.sender);
         
         emit BeneficiaryAdded(msg.sender, beneficiary, share, isGuardian);
     }
@@ -198,17 +184,14 @@ contract DecentralizedWillManager {
         uint256 beneficiaryIndex = _getBeneficiaryIndex(beneficiary, msg.sender);
         Beneficiary storage targetBeneficiary = will.beneficiaries[beneficiaryIndex];
         
-        // Guardian validation
         if (isGuardian && !targetBeneficiary.isGuardian) {
             require(!_hasGuardian(msg.sender), "Guardian already exists");
         }
         
-        // Check total shares constraint
         uint256 currentTotal = _getTotalShares(msg.sender);
         uint256 adjustedTotal = currentTotal - targetBeneficiary.share + newShare;
         require(adjustedTotal <= 100, "Total shares cannot exceed 100%");
         
-        // Update beneficiary
         targetBeneficiary.share = newShare;
         targetBeneficiary.isGuardian = isGuardian;
         
@@ -229,12 +212,8 @@ contract DecentralizedWillManager {
         Will storage will = wills[msg.sender];
         uint256 beneficiaryIndex = _getBeneficiaryIndex(beneficiary, msg.sender);
         
-        // Remove from beneficiaries array
         will.beneficiaries[beneficiaryIndex] = will.beneficiaries[will.beneficiaries.length - 1];
         will.beneficiaries.pop();
-        
-        // Remove from reverse mapping
-        _removeBeneficiaryFromMapping(beneficiary, msg.sender);
         
         emit BeneficiaryRemoved(msg.sender, beneficiary);
     }
@@ -290,78 +269,6 @@ contract DecentralizedWillManager {
         emit CheckIn(msg.sender, block.timestamp);
     }
     
-    // ============ VIEW FUNCTIONS ============
-    
-    /**
-     * @dev Gets will details for a testator
-     */
-    function getWill(address testator) external view returns (
-        address,           // testator
-        uint256,           // lockedVault
-        uint256,           // flexibleVault  
-        uint256,           // lastCheckIn
-        uint256,           // checkInPeriod
-        uint256,           // disputePeriod
-        bool               // executed
-    ) {
-        Will storage will = wills[testator];
-        return (
-            will.testator,
-            will.lockedVault,
-            will.flexibleVault,
-            will.lastCheckIn,
-            will.checkInPeriod,
-            will.disputePeriod,
-            will.executed
-        );
-    }
-    
-    /**
-     * @dev Gets beneficiaries for a will
-     */
-    function getBeneficiaries(address testator) external view returns (Beneficiary[] memory) {
-        return wills[testator].beneficiaries;
-    }
-    
-    /**
-     * @dev Gets testators for whom an address is a beneficiary
-     */
-    function getTestatorsByBeneficiary(address beneficiary) external view returns (address[] memory) {
-        return beneficiaryToTestators[beneficiary];
-    }
-    
-    /**
-     * @dev Checks execution eligibility
-     */
-    function canExecuteWill(address testator, address executor) external view returns (bool, string memory) {
-        Will storage will = wills[testator];
-        
-        if (will.testator == address(0)) return (false, "Will does not exist");
-        if (will.executed) return (false, "Will already executed");
-        
-        uint256 currentTime = block.timestamp;
-        uint256 deadlineTime = will.lastCheckIn + will.checkInPeriod;
-        uint256 disputeEndTime = deadlineTime + will.disputePeriod;
-        
-        if (currentTime <= deadlineTime) {
-            return (false, "Check-in period has not expired");
-        }
-        
-        if (currentTime <= disputeEndTime) {
-            if (_isGuardianOfWill(executor, testator)) {
-                return (true, "Guardian can execute during dispute period");
-            } else {
-                return (false, "Only guardian can execute during dispute period");
-            }
-        } else {
-            if (_isBeneficiaryOfWill(executor, testator)) {
-                return (true, "Beneficiary can execute after dispute period");
-            } else {
-                return (false, "Only beneficiaries can execute will");
-            }
-        }
-    }
-    
     // ============ INTERNAL HELPER FUNCTIONS ============
     
     function _isBeneficiaryOfWill(address user, address testator) internal view returns (bool) {
@@ -411,16 +318,5 @@ contract DecentralizedWillManager {
             }
         }
         revert("Beneficiary not found");
-    }
-    
-    function _removeBeneficiaryFromMapping(address beneficiary, address testator) internal {
-        address[] storage testators = beneficiaryToTestators[beneficiary];
-        for (uint256 i = 0; i < testators.length; i++) {
-            if (testators[i] == testator) {
-                testators[i] = testators[testators.length - 1];
-                testators.pop();
-                break;
-            }
-        }
     }
 }
