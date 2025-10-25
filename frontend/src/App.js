@@ -89,10 +89,18 @@ export default function App() {
 
     // Listen for account changes
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts) => {
+
+      window.ethereum.on('accountsChanged', async (accounts) => {
         if (accounts.length === 0) {
           disconnectWallet();
         } else {
+          const newProvider = new ethers.BrowserProvider(window.ethereum);
+          const newSigner = await newProvider.getSigner();
+          const newContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, newSigner);
+
+          setProvider(newProvider);
+          setSigner(newSigner);
+          setContract(newContract);
           setAccount(accounts[0]);
           showToast('Account changed', 'info');
         }
