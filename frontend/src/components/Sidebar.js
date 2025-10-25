@@ -13,7 +13,6 @@ const Sidebar = ({ isOpen, currentView, setCurrentView }) => {
       {isOpen && (
         <div
           className="fixed inset-0 bg-gray-600 bg-opacity-75 z-20 lg:hidden"
-          onClick={() => {}}
         />
       )}
 

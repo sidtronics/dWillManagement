@@ -470,7 +470,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
                     // Edit mode
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="font-medium text-sm">{beneficiary.beneficiary.slice(0, 6)}...{beneficiary.beneficiary.slice(-4)}</p>
+                        <p className="font-medium text-sm">{beneficiary.beneficiary}</p>
                         <button
                           onClick={() => setEditingBeneficiary(null)}
                           className="text-gray-500 hover:text-gray-700"
@@ -527,7 +527,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
                     // View mode
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-sm">{beneficiary.beneficiary.slice(0, 6)}...{beneficiary.beneficiary.slice(-4)}</p>
+                        <p className="font-medium text-sm">{beneficiary.beneficiary}</p>
                         <p className="text-sm text-gray-600">
                           {beneficiary.share}% 
                           {willDetails.guardian === beneficiary.beneficiary && (

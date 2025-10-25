@@ -140,21 +140,9 @@ const Dashboard = ({ account, contract, showToast, onDisconnect }) => {
                     </button>
                   </div>
                   
-                  <div className="py-3 border-b">
-                    <p className="font-medium text-gray-900 mb-2">Notifications</p>
-                    <label className="flex items-center space-x-3">
-                      <input type="checkbox" className="rounded" defaultChecked />
-                      <span className="text-sm text-gray-700">Email notifications for check-ins</span>
-                    </label>
-                    <label className="flex items-center space-x-3 mt-2">
-                      <input type="checkbox" className="rounded" defaultChecked />
-                      <span className="text-sm text-gray-700">Alert when eligible to execute will</span>
-                    </label>
-                  </div>
-                  
                   <div className="py-3">
                     <p className="font-medium text-gray-900 mb-2">Network</p>
-                    <p className="text-sm text-gray-600">Currently connected to Ethereum Mainnet</p>
+                    <p className="text-sm text-gray-600">Currently connected to Anvil</p>
                   </div>
                 </div>
               </div>
@@ -188,7 +176,7 @@ const Dashboard = ({ account, contract, showToast, onDisconnect }) => {
 
       <main 
         className={`pt-16 transition-all duration-300 ease-in-out ${
-          isSidebarOpen ? 'lg:ml-64' : 'ml-0 w-1'
+          isSidebarOpen ? 'lg:ml-64' : 'ml-0'
         }`}
       >
         <div className="p-6">

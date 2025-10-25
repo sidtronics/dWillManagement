@@ -105,7 +105,7 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h4 className="text-lg font-semibold text-gray-900">
-                          Testator: {will.testator.slice(0, 8)}...{will.testator.slice(-6)}
+                          Testator: {will.testator}
                         </h4>
                         {details?.guardian === account && (
                           <span className="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full flex items-center font-medium">
@@ -257,7 +257,7 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
                                   <tr key={idx} className={beneficiary.beneficiary === account ? 'bg-blue-50' : ''}>
                                     <td className="px-4 py-3 text-sm">
                                       <span className={beneficiary.beneficiary === account ? 'font-semibold text-blue-900' : 'text-gray-900'}>
-                                        {beneficiary.beneficiary.slice(0, 6)}...{beneficiary.beneficiary.slice(-4)}
+                                        {beneficiary.beneficiary}
                                       </span>
                                       {beneficiary.beneficiary === account && (
                                         <span className="ml-2 text-xs text-blue-600">(You)</span>
