@@ -257,6 +257,20 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
     }
   };
 
+  const getSeconds = (unit) => {
+      const map = {
+        seconds: 1,
+        minutes: 60,
+        hours: 3600,
+        days: 86400,
+        weeks: 604800,
+        months: 2592000,
+        years: 31536000,
+      };
+      return map[unit] || 1;
+  };
+
+
   const formatEther = (wei) => ethers.formatEther(wei || '0');
   const isValidAddress = (address) => /^0x[a-fA-F0-9]{40}$/.test(address);
   const getTotalShares = () => willDetails?.beneficiaries?.reduce((sum, b) => sum + b.share, 0) || 0;
@@ -277,42 +291,105 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
             <p className="text-gray-500 mb-4">No will created yet</p>
             <div className="space-y-4 max-w-md mx-auto">
               <div className="grid grid-cols-1 gap-4">
+                {/* Check-in Period */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Check-in Period (seconds)
+                    Check-in Period
                   </label>
-                  <input
-                    type="number"
-                    min="3600"
-                    placeholder="e.g., 2592000 (30 days)"
-                    value={createWillForm.checkInPeriod}
-                    onChange={(e) => setCreateWillForm({...createWillForm, checkInPeriod: parseInt(e.target.value) || 0})}
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Current: {Math.floor(createWillForm.checkInPeriod / 86400)} days
-                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Enter amount"
+                      value={createWillForm.checkInValue}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 0;
+                        const seconds = val * getSeconds(createWillForm.checkInUnit);
+                        setCreateWillForm({
+                          ...createWillForm,
+                          checkInValue: val,
+                          checkInPeriod: seconds,
+                        });
+                      }}
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                    <select
+                      value={createWillForm.checkInUnit}
+                      onChange={(e) => {
+                        const unit = e.target.value;
+                        const seconds = (createWillForm.checkInValue || 0) * getSeconds(unit);
+                        setCreateWillForm({
+                          ...createWillForm,
+                          checkInUnit: unit,
+                          checkInPeriod: seconds,
+                        });
+                      }}
+                      className="border rounded-lg px-3 py-2"
+                    >
+                      <option value="seconds">Seconds</option>
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                      <option value="weeks">Weeks</option>
+                      <option value="months">Months</option>
+                      <option value="years">Years</option>
+                    </select>
+                  </div>
                 </div>
+
+                {/* Dispute Period */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Dispute Period (seconds)
+                    Dispute Period
                   </label>
-                  <input
-                    type="number"
-                    min="3600"
-                    placeholder="e.g., 604800 (7 days)"
-                    value={createWillForm.disputePeriod}
-                    onChange={(e) => setCreateWillForm({...createWillForm, disputePeriod: parseInt(e.target.value) || 0})}
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Current: {Math.floor(createWillForm.disputePeriod / 86400)} days
-                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Enter amount"
+                      value={createWillForm.disputeValue}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 0;
+                        const seconds = val * getSeconds(createWillForm.disputeUnit);
+                        setCreateWillForm({
+                          ...createWillForm,
+                          disputeValue: val,
+                          disputePeriod: seconds,
+                        });
+                      }}
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                    <select
+                      value={createWillForm.disputeUnit}
+                      onChange={(e) => {
+                        const unit = e.target.value;
+                        const seconds = (createWillForm.disputeValue || 0) * getSeconds(unit);
+                        setCreateWillForm({
+                          ...createWillForm,
+                          disputeUnit: unit,
+                          disputePeriod: seconds,
+                        });
+                      }}
+                      className="border rounded-lg px-3 py-2"
+                    >
+                      <option value="seconds">Seconds</option>
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                      <option value="weeks">Weeks</option>
+                      <option value="months">Months</option>
+                      <option value="years">Years</option>
+                    </select>
+                  </div>
                 </div>
               </div>
+
+              {/* Create Will Button */}
               <button
                 onClick={createWill}
-                disabled={loading || createWillForm.checkInPeriod <= 0 || createWillForm.disputePeriod <= 0}
+                disabled={
+                  loading
+                }
                 className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 disabled:opacity-50 w-full font-medium"
               >
                 {loading ? 'Creating...' : 'Create Will'}
@@ -454,7 +531,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
                   </span>
                 </p>
               </div>
-            </div>>
+            </div>
 
 
             {/* Beneficiaries */}

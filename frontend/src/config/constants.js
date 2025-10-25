@@ -14,6 +14,10 @@ export const CONTRACT_ABI = [
 ];
 
 export const DEFAULT_PERIODS = {
-  checkInPeriod: 30 * 24 * 3600, // 30 days
-  disputePeriod: 7 * 24 * 3600   // 7 days
+  checkInValue: 30,
+  checkInUnit: 'days',
+  checkInPeriod: 30 * 86400,
+  disputeValue: 7,
+  disputeUnit: 'days',
+  disputePeriod: 7 * 86400,
 };
