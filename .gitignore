@@ -1,5 +1,7 @@
 /abi.json
 /DecentralizedWillManager.sol
+/pinata
+/frontend/.env
 
 # === Global ===
 .DS_Store

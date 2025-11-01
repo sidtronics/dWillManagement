@@ -10,8 +10,12 @@ export const CONTRACT_ABI = [
   'function removeBeneficiary(address beneficiary)',
   'function depositLocked() payable',
   'function depositFlexible() payable',
-  'function withdrawFlexible(uint256 amount)'
+  'function withdrawFlexible(uint256 amount)',
+  'function addDocument(string memory ipfsHash, string memory fileName, string memory documentType)',
+  'function removeDocument(string memory ipfsHash)',
+  'function getDocuments(address testator) view'
 ];
+
 
 export const DEFAULT_PERIODS = {
   checkInValue: 30,

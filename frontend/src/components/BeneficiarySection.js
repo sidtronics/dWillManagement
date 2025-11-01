@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Users, AlertTriangle, Clock, Shield, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, AlertTriangle, Clock, Shield, Eye, ChevronDown, ChevronUp, FileText, ExternalLink } from 'lucide-react';
 import apiService from '../services/api';
+import pinataService from '../services/pinataService';
 
 const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, loading, setLoading, refreshData }) => {
   const [willDetails, setWillDetails] = useState({});
+  const [willDocuments, setWillDocuments] = useState({});
   const [expandedWill, setExpandedWill] = useState(null);
+  const [loadingDocuments, setLoadingDocuments] = useState({});
 
   const executeWill = async (testator) => {
     if (!contract) return;
@@ -31,6 +34,29 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
       }));
     } catch (error) {
       console.error('Failed to load will details:', error);
+    }
+  };
+
+  const loadWillDocuments = async (willId) => {
+    // Only load documents if will is executed
+    const details = willDetails[willId];
+    if (!details || !details.executed) return;
+
+    try {
+      setLoadingDocuments(prev => ({ ...prev, [willId]: true }));
+      const response = await apiService.getDocuments(willId);
+      setWillDocuments(prev => ({
+        ...prev,
+        [willId]: response.data.documents || []
+      }));
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+      setWillDocuments(prev => ({
+        ...prev,
+        [willId]: []
+      }));
+    } finally {
+      setLoadingDocuments(prev => ({ ...prev, [willId]: false }));
     }
   };
 
@@ -77,7 +103,17 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
         loadWillDetails(will.willId);
       }
     });
-  }, [beneficiaryWills]);
+  }, [beneficiaryWills, willDetails]);
+
+  // Load documents when will details change and will is expanded
+  useEffect(() => {
+    if (expandedWill) {
+      const details = willDetails[expandedWill];
+      if (details && details.executed && !willDocuments[expandedWill]) {
+        loadWillDocuments(expandedWill);
+      }
+    }
+  }, [expandedWill, loadWillDocuments, willDetails, willDocuments]);
 
   return (
     <div className="space-y-6">
@@ -96,6 +132,8 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
             const details = willDetails[will.willId];
             const executionStatus = getExecutionStatus(will);
             const isExpanded = expandedWill === will.willId;
+            const documents = willDocuments[will.willId] || [];
+            const isLoadingDocs = loadingDocuments[will.willId];
             
             return (
               <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -236,6 +274,61 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
                               </p>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Documents Section - Only visible when will is executed */}
+                      {details.executed && (
+                        <div>
+                          <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Testator's Documents ({documents.length})
+                          </h5>
+                          
+                          {isLoadingDocs ? (
+                            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                              <p className="text-gray-500">Loading documents...</p>
+                            </div>
+                          ) : documents.length === 0 ? (
+                            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                              <FileText className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+                              <p className="text-gray-500">No documents attached to this will</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {documents.map((doc, idx) => (
+                                <div key={idx} className="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                        <p className="font-medium text-gray-900 truncate">{doc.fileName}</p>
+                                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded flex-shrink-0">
+                                          {doc.documentType}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mb-1">
+                                        Uploaded: {new Date(Number(doc.uploadedAt) * 1000).toLocaleString()}
+                                      </p>
+                                      <p className="text-xs text-gray-400 font-mono break-all">
+                                        IPFS: {doc.ipfsHash}
+                                      </p>
+                                    </div>
+                                    
+                                    <a
+                                      href={pinataService.getGatewayUrl(doc.ipfsHash)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex-shrink-0 text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                      title="View on IPFS"
+                                    >
+                                      <ExternalLink className="h-5 w-5" />
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 

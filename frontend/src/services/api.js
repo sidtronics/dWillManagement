@@ -65,6 +65,19 @@ class ApiService {
     return this.request(`/vaults/${willId.toLowerCase()}`);
   }
 
+  // Get all documents for a will
+  async getDocuments(willId) {
+    if (!willId) throw new Error('Will ID is required');
+    return this.request(`/documents/${willId.toLowerCase()}`);
+  }
+
+  // Get specific document by IPFS hash
+  async getDocument(willId, ipfsHash) {
+    if (!willId) throw new Error('Will ID is required');
+    if (!ipfsHash) throw new Error('IPFS hash is required');
+    return this.request(`/documents/${willId.toLowerCase()}/${ipfsHash}`);
+  }
+
   // Get statistics
   async getStats() {
     return this.request('/stats');

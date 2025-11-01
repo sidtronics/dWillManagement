@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 /**
  * @title DecentralizedWillManager
- * @dev Master contract for managing multiple wills with dead man's switch and dual vault system
+ * @dev Master contract for managing multiple wills with dead man's switch, dual vault system, and document storage
  */
 contract DecentralizedWillManager {
     
@@ -15,6 +15,13 @@ contract DecentralizedWillManager {
         bool isGuardian;         // Only one guardian per will
     }
     
+    struct Document {
+        string ipfsHash;         // IPFS hash of the document
+        string fileName;         // Original file name
+        uint256 uploadedAt;      // Timestamp of upload
+        string documentType;     // Type of document (e.g., "property", "insurance", "other")
+    }
+    
     struct Will {
         address testator;             // Will owner
         Beneficiary[] beneficiaries;  // Array of beneficiaries
@@ -24,6 +31,7 @@ contract DecentralizedWillManager {
         uint256 checkInPeriod;        // Seconds between required check-ins
         uint256 disputePeriod;        // Seconds for dispute resolution after deadline
         bool executed;                // Whether will has been executed
+        Document[] documents;         // Array of documents attached to the will
     }
     
     // ============ STATE VARIABLES ============
@@ -42,6 +50,8 @@ contract DecentralizedWillManager {
     event CheckIn(address indexed testator, uint256 timestamp);
     event WillExecuted(address indexed testator, uint256 totalDistributed);
     event DisputeStarted(address indexed testator, uint256 disputeDeadline);
+    event DocumentAdded(address indexed testator, string ipfsHash, string fileName, string documentType);
+    event DocumentRemoved(address indexed testator, string ipfsHash);
     
     // ============ MODIFIERS ============
     
@@ -96,11 +106,6 @@ contract DecentralizedWillManager {
         uint256 currentTime = block.timestamp;
         uint256 deadlineTime = will.lastCheckIn + will.checkInPeriod;
         uint256 disputeEndTime = deadlineTime + will.disputePeriod;
-        
-        // Execution timing rules:
-        // 1. Before deadline: No execution allowed
-        // 2. Between deadline and dispute end: Only guardian can execute
-        // 3. After dispute period: Any beneficiary can execute
         
         require(currentTime > deadlineTime, "Check-in period has not expired");
         
@@ -256,6 +261,69 @@ contract DecentralizedWillManager {
         require(success, "Withdrawal failed");
         
         emit WithdrawFlexible(msg.sender, amount);
+    }
+    
+    // ============ DOCUMENT MANAGEMENT ============
+    
+    /**
+     * @dev Adds a document to the testator's will
+     * @param ipfsHash IPFS hash of the document
+     * @param fileName Original file name
+     * @param documentType Type of document
+     */
+    function addDocument(string memory ipfsHash, string memory fileName, string memory documentType) 
+        external 
+        willExists(msg.sender) 
+        willNotExecuted(msg.sender) 
+    {
+        require(bytes(ipfsHash).length > 0, "IPFS hash cannot be empty");
+        require(bytes(fileName).length > 0, "File name cannot be empty");
+        
+        wills[msg.sender].documents.push(Document({
+            ipfsHash: ipfsHash,
+            fileName: fileName,
+            uploadedAt: block.timestamp,
+            documentType: documentType
+        }));
+        
+        emit DocumentAdded(msg.sender, ipfsHash, fileName, documentType);
+    }
+    
+    /**
+     * @dev Removes a document from the testator's will
+     * @param ipfsHash IPFS hash of the document to remove
+     */
+    function removeDocument(string memory ipfsHash) 
+        external 
+        willExists(msg.sender) 
+        willNotExecuted(msg.sender) 
+    {
+        Will storage will = wills[msg.sender];
+        
+        for (uint256 i = 0; i < will.documents.length; i++) {
+            if (keccak256(bytes(will.documents[i].ipfsHash)) == keccak256(bytes(ipfsHash))) {
+                will.documents[i] = will.documents[will.documents.length - 1];
+                will.documents.pop();
+                emit DocumentRemoved(msg.sender, ipfsHash);
+                return;
+            }
+        }
+        
+        revert("Document not found");
+    }
+    
+    /**
+     * @dev Gets all documents for a will
+     * @param testator Address of the testator
+     * @return Array of documents
+     */
+    function getDocuments(address testator) 
+        external 
+        view 
+        willExists(testator) 
+        returns (Document[] memory) 
+    {
+        return wills[testator].documents;
     }
     
     // ============ DEAD MAN'S SWITCH ============

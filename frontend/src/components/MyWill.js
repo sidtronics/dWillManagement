@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Clock, Vault, Users, Plus, Trash2, ArrowDownToLine, Send, Edit, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Shield, Clock, Vault, Users, Plus, Trash2, ArrowDownToLine, Send, Edit, CheckCircle, FileText, Upload, ExternalLink, Download } from 'lucide-react';
 import { ethers } from 'ethers';
 import apiService from '../services/api';
+import pinataService from '../services/pinataService';
 import { DEFAULT_PERIODS } from '../config/constants';
 
 const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, refreshData }) => {
@@ -13,6 +14,10 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
   const [editingBeneficiary, setEditingBeneficiary] = useState(null);
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [documents, setDocuments] = useState([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [selectedDocumentType, setSelectedDocumentType] = useState('property');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     console.log('MyWill - myWills updated:', myWills);
@@ -29,6 +34,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
   useEffect(() => {
     if (selectedWill) {
       loadWillDetails();
+      loadDocuments();
     }
   }, [selectedWill]);
 
@@ -57,6 +63,97 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
     }
   };
 
+  const loadDocuments = async () => {
+    if (!account) return;
+    
+    try {
+      const response = await apiService.getDocuments(account);
+      console.log('Loaded documents from API:', response);
+      setDocuments(response.data.documents || []);
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+      // Fallback to empty array on error
+      setDocuments([]);
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      showToast('File size must be less than 10MB', 'error');
+      return;
+    }
+
+    try {
+      setUploadingFile(true);
+      showToast('Uploading file to IPFS...', 'info');
+
+      // Upload to Pinata IPFS
+      const uploadResult = await pinataService.uploadFile(file, {
+        fileName: file.name,
+        documentType: selectedDocumentType,
+        testatorAddress: account,
+      });
+
+      console.log('File uploaded to IPFS:', uploadResult);
+      showToast('File uploaded to IPFS. Adding to blockchain...', 'info');
+
+      // Add document hash to blockchain
+      const tx = await contract.addDocument(
+        uploadResult.ipfsHash,
+        file.name,
+        selectedDocumentType
+      );
+
+      showToast('Transaction submitted. Waiting for confirmation...', 'info');
+      await tx.wait();
+
+      showToast('Document added successfully!', 'success');
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      // Reload documents after indexer processes the event
+      setTimeout(() => loadDocuments(), 3000);
+
+    } catch (error) {
+      console.error('File upload error:', error);
+      showToast(`Failed to upload document: ${error.message}`, 'error');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const removeDocument = async (ipfsHash) => {
+    if (!contract) return;
+    
+    try {
+      setLoading(true);
+      showToast('Removing document...', 'info');
+
+      const tx = await contract.removeDocument(ipfsHash);
+      await tx.wait();
+
+      showToast('Document removed successfully!', 'success');
+      
+      // Optionally unpin from Pinata (requires additional setup)
+      // await pinataService.unpinFile(ipfsHash);
+
+      setTimeout(() => loadDocuments(), 3000);
+    } catch (error) {
+      console.error('Remove document error:', error);
+      showToast(`Failed to remove document: ${error.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const createWill = async () => {
     if (!contract) {
       showToast('Contract not connected', 'error');
@@ -66,7 +163,6 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
     try {
       setLoading(true);
       
-      // Validate inputs
       if (createWillForm.checkInPeriod <= 0 || createWillForm.disputePeriod <= 0) {
         showToast('Periods must be greater than 0', 'error');
         return;
@@ -84,7 +180,6 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       
       showToast('Will created successfully!', 'success');
       
-      // Wait longer for indexer to catch up and then refresh
       setTimeout(async () => {
         console.log('Refreshing data after will creation...');
         await refreshData();
@@ -109,7 +204,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       setTimeout(() => {
         loadWillDetails();
         refreshData();
-      }, 2000); // Wait for indexer to update
+      }, 2000);
     } catch (error) {
       showToast(`Check-in failed: ${error.message}`, 'error');
     } finally {
@@ -120,7 +215,6 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
   const addBeneficiary = async () => {
     if (!contract || !beneficiaryForm.address || !isValidAddress(beneficiaryForm.address)) return;
     
-    // Validate total shares won't exceed 100%
     const currentTotal = getTotalShares();
     if (currentTotal + beneficiaryForm.share > 100) {
       showToast('Total shares would exceed 100%', 'error');
@@ -138,7 +232,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       await tx.wait();
       showToast('Beneficiary added successfully!', 'success');
       setBeneficiaryForm({ address: '', share: 0, isGuardian: false });
-      setTimeout(() => loadWillDetails(), 2000); // Wait for indexer to update
+      setTimeout(() => loadWillDetails(), 2000);
     } catch (error) {
       showToast(`Failed to add beneficiary: ${error.message}`, 'error');
     } finally {
@@ -154,7 +248,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       showToast('Removing beneficiary...', 'info');
       await tx.wait();
       showToast('Beneficiary removed successfully!', 'success');
-      setTimeout(() => loadWillDetails(), 2000); // Wait for indexer to update
+      setTimeout(() => loadWillDetails(), 2000);
     } catch (error) {
       showToast(`Failed to remove beneficiary: ${error.message}`, 'error');
     } finally {
@@ -170,7 +264,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       showToast('Updating beneficiary...', 'info');
       await tx.wait();
       showToast('Beneficiary updated successfully!', 'success');
-      setTimeout(() => loadWillDetails(), 2000); // Wait for indexer to update
+      setTimeout(() => loadWillDetails(), 2000);
     } catch (error) {
       showToast(`Failed to update beneficiary: ${error.message}`, 'error');
     } finally {
@@ -194,7 +288,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       await tx.wait();
       showToast(`Successfully deposited ${depositAmount} ETH to locked vault!`, 'success');
       setDepositAmount('');
-      setTimeout(() => loadWillDetails(), 2000); // Wait for indexer to update
+      setTimeout(() => loadWillDetails(), 2000);
     } catch (error) {
       showToast(`Deposit failed: ${error.message}`, 'error');
     } finally {
@@ -218,7 +312,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       await tx.wait();
       showToast(`Successfully deposited ${depositAmount} ETH to flexible vault!`, 'success');
       setDepositAmount('');
-      setTimeout(() => loadWillDetails(), 2000); // Wait for indexer to update
+      setTimeout(() => loadWillDetails(), 2000);
     } catch (error) {
       showToast(`Deposit failed: ${error.message}`, 'error');
     } finally {
@@ -249,7 +343,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       await tx.wait();
       showToast(`Successfully withdrew ${withdrawAmount} ETH from flexible vault!`, 'success');
       setWithdrawAmount('');
-      setTimeout(() => loadWillDetails(), 2000); // Wait for indexer to update
+      setTimeout(() => loadWillDetails(), 2000);
     } catch (error) {
       showToast(`Withdrawal failed: ${error.message}`, 'error');
     } finally {
@@ -269,7 +363,6 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
       };
       return map[unit] || 1;
   };
-
 
   const formatEther = (wei) => ethers.formatEther(wei || '0');
   const isValidAddress = (address) => /^0x[a-fA-F0-9]{40}$/.test(address);
@@ -387,9 +480,7 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
               {/* Create Will Button */}
               <button
                 onClick={createWill}
-                disabled={
-                  loading
-                }
+                disabled={loading}
                 className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 disabled:opacity-50 w-full font-medium"
               >
                 {loading ? 'Creating...' : 'Create Will'}
@@ -533,6 +624,113 @@ const MyWill = ({ account, contract, myWills, showToast, loading, setLoading, re
               </div>
             </div>
 
+            {/* Documents Section */}
+            <div className="space-y-4">
+              <h3 className="font-semibold flex items-center">
+                <FileText className="mr-2 h-4 w-4" />
+                Documents ({documents.length})
+              </h3>
+
+              {/* Upload Section */}
+              {!selectedWill?.executed && (
+                <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700">Upload Document to IPFS</label>
+                    
+                    <div className="flex gap-2 items-center">
+                      <select
+                        value={selectedDocumentType}
+                        onChange={(e) => setSelectedDocumentType(e.target.value)}
+                        className="border rounded-lg px-3 py-2 text-sm"
+                        disabled={uploadingFile}
+                      >
+                        <option value="property">Property Papers</option>
+                        <option value="insurance">Insurance Documents</option>
+                        <option value="bank">Bank Documents</option>
+                        <option value="investment">Investment Records</option>
+                        <option value="legal">Legal Documents</option>
+                        <option value="medical">Medical Records</option>
+                        <option value="other">Other</option>
+                      </select>
+
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileUpload}
+                        disabled={uploadingFile}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                      />
+                      
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingFile || loading}
+                        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadingFile ? 'Uploading...' : 'Choose File'}
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG (Max 10MB)
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Documents List */}
+              <div className="space-y-2">
+                {documents.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No documents uploaded yet</p>
+                ) : (
+                  documents.map((doc, index) => (
+                    <div key={index} className="p-3 bg-white border rounded-lg hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-500" />
+                            <p className="font-medium text-sm">{doc.fileName}</p>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              {doc.documentType}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Uploaded: {new Date(Number(doc.uploadedAt) * 1000).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1 font-mono break-all">
+                            IPFS: {doc.ipfsHash}
+                          </p>
+                        </div>
+                        
+                        <div className="flex gap-2 ml-4">
+                          <a
+                            href={pinataService.getGatewayUrl(doc.ipfsHash)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-700 p-2"
+                            title="View on IPFS"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                          
+                          {!selectedWill?.executed && (
+                            <button
+                              onClick={() => removeDocument(doc.ipfsHash)}
+                              disabled={loading}
+                              className="text-red-500 hover:text-red-700 disabled:opacity-50 p-2"
+                              title="Remove document"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
 
             {/* Beneficiaries */}
             <div className="space-y-4">

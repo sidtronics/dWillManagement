@@ -5,7 +5,9 @@ const {
     getWillsByBeneficiary,
     getWillDetails,
     getBeneficiaryWills,
-    getVaults
+    getVaults,
+    getDocuments,
+    getDocumentByHash
 } = require('./db');
 
 const app = express();
@@ -34,6 +36,11 @@ function handleError(res, error, message = 'Internal server error') {
 // Validation helpers
 function isValidAddress(address) {
     return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+function isValidIpfsHash(hash) {
+    // Basic IPFS hash validation (CIDv0 and CIDv1)
+    return /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafyb[a-z2-7]{50,})$/.test(hash);
 }
 
 // Health check endpoint
@@ -185,7 +192,73 @@ app.get('/vaults/:willId', (req, res) => {
     }
 });
 
-// GET /stats - Get overall statistics (bonus endpoint)
+// GET /documents/:willId - Get all documents for a will
+app.get('/documents/:willId', (req, res) => {
+    try {
+        const { willId } = req.params;
+        
+        if (!isValidAddress(willId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid will ID format (should be testator address)'
+            });
+        }
+        
+        const documents = getDocuments(willId);
+        
+        res.json({
+            success: true,
+            data: {
+                willId,
+                documents,
+                count: documents.length
+            }
+        });
+        
+    } catch (error) {
+        handleError(res, error, 'Failed to fetch documents');
+    }
+});
+
+// GET /documents/:willId/:ipfsHash - Get specific document details
+app.get('/documents/:willId/:ipfsHash', (req, res) => {
+    try {
+        const { willId, ipfsHash } = req.params;
+        
+        if (!isValidAddress(willId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid will ID format (should be testator address)'
+            });
+        }
+        
+        if (!isValidIpfsHash(ipfsHash)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid IPFS hash format'
+            });
+        }
+        
+        const document = getDocumentByHash(willId, ipfsHash);
+        
+        if (!document) {
+            return res.status(404).json({
+                success: false,
+                error: 'Document not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: document
+        });
+        
+    } catch (error) {
+        handleError(res, error, 'Failed to fetch document');
+    }
+});
+
+// GET /stats - Get overall statistics
 app.get('/stats', (req, res) => {
     try {
         const { getDatabase } = require('./db');
@@ -196,10 +269,17 @@ app.get('/stats', (req, res) => {
             executedWills: db.prepare('SELECT COUNT(*) as count FROM Wills WHERE executed = 1').get().count,
             activeWills: db.prepare('SELECT COUNT(*) as count FROM Wills WHERE executed = 0').get().count,
             totalBeneficiaries: db.prepare('SELECT COUNT(DISTINCT beneficiary) as count FROM Beneficiaries').get().count,
+            totalDocuments: db.prepare('SELECT COUNT(*) as count FROM Documents').get().count,
             totalVaultValue: {
                 locked: db.prepare('SELECT SUM(CAST(balance AS INTEGER)) as total FROM Vaults WHERE vaultType = "locked"').get().total || 0,
                 flexible: db.prepare('SELECT SUM(CAST(balance AS INTEGER)) as total FROM Vaults WHERE vaultType = "flexible"').get().total || 0
-            }
+            },
+            documentsByType: db.prepare(`
+                SELECT documentType, COUNT(*) as count 
+                FROM Documents 
+                GROUP BY documentType 
+                ORDER BY count DESC
+            `).all()
         };
         
         res.json({
@@ -211,23 +291,6 @@ app.get('/stats', (req, res) => {
         handleError(res, error, 'Failed to fetch statistics');
     }
 });
-
-// 404 handler for undefined routes
-// app.use('/*', (req, res) => {
-//     res.status(404).json({
-//         success: false,
-//         error: 'Endpoint not found',
-//         availableEndpoints: [
-//             'GET /health',
-//             'GET /wills/:testator',
-//             'GET /wills/beneficiary/:beneficiary', 
-//             'GET /will/:id',
-//             'GET /beneficiaries/:beneficiary',
-//             'GET /vaults/:willId',
-//             'GET /stats'
-//         ]
-//     });
-// });
 
 // Global error handler
 app.use((error, req, res, next) => {

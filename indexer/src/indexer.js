@@ -8,24 +8,22 @@ const {
     addBeneficiary,
     removeBeneficiary,
     updateBeneficiary,
-    updateVaultBalance
+    updateVaultBalance,
+    addDocument,
+    removeDocument
 } = require('./db');
 
 // Configuration - adjust these for your local testnet
-// const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x5b73c5498c1e3b4dba84de0f1833c4a029d90519';
 const RPC_URL = 'ws://localhost:8545';
 const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 const CONTRACT_ABI = require('../../contract/out/DecentralizedWillManager.sol/DecentralizedWillManager.json').abi;
 
-// Contract ABI - loaded from file
 let provider;
 let contract;
 
 async function startIndexer() {
     try {
-        
         // Connect to blockchain
-        // provider = new ethers.JsonRpcProvider(RPC_URL);
         provider = new ethers.WebSocketProvider(RPC_URL);
         contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
         
@@ -155,6 +153,37 @@ function setupEventListeners() {
             console.error('Error handling DisputeStarted event:', error);
         }
     });
+
+    // DocumentAdded event
+    contract.on('DocumentAdded', (testator, ipfsHash, fileName, documentType, event) => {
+        try {
+            console.log(`📄 DocumentAdded: ${fileName} (${documentType}) to ${testator}`);
+            console.log(`   IPFS Hash: ${ipfsHash}`);
+            
+            // Get block timestamp for uploadedAt
+            event.getBlock().then(block => {
+                addDocument(testator, ipfsHash, fileName, documentType, block.timestamp);
+            }).catch(err => {
+                console.error('Error getting block timestamp:', err);
+                // Fallback to current timestamp
+                addDocument(testator, ipfsHash, fileName, documentType, Math.floor(Date.now() / 1000));
+            });
+        } catch (error) {
+            console.error('Error handling DocumentAdded event:', error);
+        }
+    });
+
+    // DocumentRemoved event
+    contract.on('DocumentRemoved', (testator, ipfsHash, event) => {
+        try {
+            console.log(`📄 DocumentRemoved: ${ipfsHash} from ${testator}`);
+            removeDocument(testator, ipfsHash);
+        } catch (error) {
+            console.error('Error handling DocumentRemoved event:', error);
+        }
+    });
+
+    console.log('✅ Event listeners configured for all contract events');
 }
 
 async function syncHistoricalEvents() {
@@ -201,33 +230,53 @@ async function processHistoricalEvent(parsedLog, log) {
             case 'WillCreated':
                 createWill(args.testator, Number(args.checkInPeriod), Number(args.disputePeriod));
                 break;
+                
             case 'CheckIn':
                 updateLastCheckIn(args.testator, Number(args.timestamp));
                 break;
+                
             case 'WillExecuted':
                 executeWill(args.testator);
                 break;
+                
             case 'BeneficiaryAdded':
                 addBeneficiary(args.testator, args.beneficiary, Number(args.share), args.isGuardian);
                 break;
+                
             case 'BeneficiaryRemoved':
                 removeBeneficiary(args.testator, args.beneficiary);
                 break;
+                
             case 'BeneficiaryUpdated':
                 updateBeneficiary(args.testator, args.beneficiary, Number(args.newShare), args.isGuardian);
                 break;
+                
             case 'DepositLocked':
                 updateVaultBalance(args.testator, 'locked', args.amount.toString(), true);
                 break;
+                
             case 'DepositFlexible':
                 updateVaultBalance(args.testator, 'flexible', args.amount.toString(), true);
                 break;
+                
             case 'WithdrawFlexible':
                 updateVaultBalance(args.testator, 'flexible', args.amount.toString(), false);
                 break;
+                
             case 'DisputeStarted':
                 console.log(`⚠️ Historical DisputeStarted: ${args.testator}`);
                 break;
+                
+            case 'DocumentAdded':
+                // Get block to extract timestamp
+                const block = await provider.getBlock(log.blockNumber);
+                addDocument(args.testator, args.ipfsHash, args.fileName, args.documentType, block.timestamp);
+                break;
+                
+            case 'DocumentRemoved':
+                removeDocument(args.testator, args.ipfsHash);
+                break;
+                
             default:
                 console.log(`❓ Unknown event: ${name}`);
         }
@@ -242,6 +291,10 @@ process.on('SIGTERM', () => {
     if (contract) {
         contract.removeAllListeners();
     }
+    if (provider && provider._websocket) {
+        provider._websocket.close();
+    }
+    process.exit(0);
 });
 
 process.on('SIGINT', () => {
@@ -249,6 +302,10 @@ process.on('SIGINT', () => {
     if (contract) {
         contract.removeAllListeners();
     }
+    if (provider && provider._websocket) {
+        provider._websocket.close();
+    }
+    process.exit(0);
 });
 
 module.exports = {

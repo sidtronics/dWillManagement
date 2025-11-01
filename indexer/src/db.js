@@ -54,6 +54,20 @@ function createTables() {
         )
     `);
 
+    // Documents table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS Documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            willId TEXT NOT NULL,
+            ipfsHash TEXT NOT NULL,
+            fileName TEXT NOT NULL,
+            documentType TEXT NOT NULL,
+            uploadedAt INTEGER NOT NULL,
+            UNIQUE (willId, ipfsHash),
+            FOREIGN KEY (willId) REFERENCES Wills(willId)
+        )
+    `);
+
     console.log('✅ Database tables created/verified');
 }
 
@@ -216,6 +230,57 @@ function updateVaultBalance(testator, vaultType, amount, isDeposit = true) {
     console.log(`💰 ${operation} ${amount} to ${vaultType} vault for testator: ${testator}`);
 }
 
+// Document operations
+function addDocument(testator, ipfsHash, fileName, documentType, uploadedAt) {
+    const willId = testator.toLowerCase();
+    
+    const stmt = db.prepare(`
+        INSERT OR REPLACE INTO Documents (willId, ipfsHash, fileName, documentType, uploadedAt)
+        VALUES (?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(willId, ipfsHash, fileName, documentType, uploadedAt);
+    
+    console.log(`📄 Added document ${fileName} (${ipfsHash}) to will ${willId}`);
+}
+
+function removeDocument(testator, ipfsHash) {
+    const willId = testator.toLowerCase();
+    
+    const stmt = db.prepare(`
+        DELETE FROM Documents
+        WHERE willId = ? AND ipfsHash = ?
+    `);
+    
+    const result = stmt.run(willId, ipfsHash);
+    
+    if (result.changes > 0) {
+        console.log(`📄 Removed document ${ipfsHash} from will ${willId}`);
+    } else {
+        console.log(`⚠️ Document ${ipfsHash} not found in will ${willId}`);
+    }
+}
+
+function getDocuments(willId) {
+    const stmt = db.prepare(`
+        SELECT ipfsHash, fileName, documentType, uploadedAt 
+        FROM Documents
+        WHERE willId = ?
+        ORDER BY uploadedAt DESC
+    `);
+    
+    return stmt.all(willId.toLowerCase());
+}
+
+function getDocumentByHash(willId, ipfsHash) {
+    const stmt = db.prepare(`
+        SELECT * FROM Documents
+        WHERE willId = ? AND ipfsHash = ?
+    `);
+    
+    return stmt.get(willId.toLowerCase(), ipfsHash);
+}
+
 // Query functions for API
 function getWillsByTestator(testator) {
     const stmt = db.prepare(`
@@ -252,16 +317,24 @@ function getWillDetails(willId) {
         WHERE willId = ?
     `);
     
+    const documentsStmt = db.prepare(`
+        SELECT ipfsHash, fileName, documentType, uploadedAt FROM Documents
+        WHERE willId = ?
+        ORDER BY uploadedAt DESC
+    `);
+    
     const will = willStmt.get(willId.toLowerCase());
     if (!will) return null;
     
     const beneficiaries = beneficiariesStmt.all(willId.toLowerCase());
     const vaults = vaultsStmt.all(willId.toLowerCase());
+    const documents = documentsStmt.all(willId.toLowerCase());
     
     return {
         ...will,
         beneficiaries,
-        vaults
+        vaults,
+        documents
     };
 }
 
@@ -297,6 +370,10 @@ module.exports = {
     removeBeneficiary,
     updateBeneficiary,
     updateVaultBalance,
+    addDocument,
+    removeDocument,
+    getDocuments,
+    getDocumentByHash,
     getWillsByTestator,
     getWillsByBeneficiary,
     getWillDetails,
