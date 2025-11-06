@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, AlertTriangle, Clock, Shield, Eye, ChevronDown, ChevronUp, FileText, ExternalLink } from 'lucide-react';
+import { Users, AlertTriangle, Clock, Shield, ChevronDown, ChevronUp, FileText, ExternalLink } from 'lucide-react';
 import apiService from '../services/api';
 import pinataService from '../services/pinataService';
 
@@ -17,7 +17,13 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
       showToast('Executing will...', 'info');
       await tx.wait();
       showToast('Will executed successfully! Funds have been distributed.', 'success');
-      setTimeout(() => refreshData(), 2000);
+      
+      // Refresh data and load documents after execution
+      setTimeout(() => {
+        refreshData();
+        // Reload will details to get updated executed status
+        loadWillDetails(testator.toLowerCase());
+      }, 3000);
     } catch (error) {
       showToast(`Execution failed: ${error.message}`, 'error');
     } finally {
@@ -103,7 +109,7 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
         loadWillDetails(will.willId);
       }
     });
-  }, [beneficiaryWills, willDetails]);
+  }, [beneficiaryWills]);
 
   // Load documents when will details change and will is expanded
   useEffect(() => {
@@ -113,7 +119,7 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
         loadWillDocuments(expandedWill);
       }
     }
-  }, [expandedWill, loadWillDocuments, willDetails, willDocuments]);
+  }, [expandedWill, willDetails]);
 
   return (
     <div className="space-y-6">
@@ -278,7 +284,7 @@ const BeneficiarySection = ({ account, contract, beneficiaryWills, showToast, lo
                       )}
 
                       {/* Documents Section - Only visible when will is executed */}
-                      {details.executed && (
+                      {Boolean(details.executed) && (
                         <div>
                           <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                             <FileText className="h-4 w-4" />
